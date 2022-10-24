@@ -61,8 +61,7 @@ class OrderbookAggregatorServicer(keyrock_ob_aggregator_pb2_grpc.OrderbookAggreg
 @click.option("--base_asset", type=str, default="BTC")
 @click.option('--quote_asset', type=str, default="USDT")
 @click.option('--port', type=int, default=50052)
-@click.option('--output', type=bool, default=True)
-def main(base_asset, quote_asset, port, output):
+def main(base_asset, quote_asset, port):
     # Initialize logging
     logger = logging.getLogger("Order book Aggregator")
 
