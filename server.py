@@ -13,6 +13,8 @@ import grpc
 import keyrock_ob_aggregator_pb2_grpc
 import keyrock_ob_aggregator_pb2
 
+logging.basicConfig(format='%(asctime)s %(message)s')
+
 
 class OrderbookAggregatorServicer(keyrock_ob_aggregator_pb2_grpc.OrderbookAggregatorServicer):
     def __init__(self, logger: logging.Logger, orderbook):
@@ -74,11 +76,13 @@ def main(base_asset, quote_asset, port, output):
     # Initialize Binance Exchange
     binance = BinanceWS(base_asset=base_asset, quote_asset=quote_asset, orderbook=orderbook,
                         lock=lock, logger=logger)
+    binance.daemon = True
     binance.start()
 
     # Initialize Bitstamp Exchange
     bitstamp = BitstampWS(base_asset=base_asset, quote_asset=quote_asset, orderbook=orderbook,
                           lock=lock, logger=logger)
+    bitstamp.daemon = True
     bitstamp.start()
 
     # Initialize the gRPC Servicer
@@ -87,8 +91,14 @@ def main(base_asset, quote_asset, port, output):
     server.add_insecure_port(f'[::]:{port}')
 
     # Start the server
-    server.start()
-    server.wait_for_termination()
+    try:
+        server.start()
+        server.wait_for_termination()
+    except KeyboardInterrupt:
+        logger.info(f"Stopping service...")
+        server.stop(grace=False)
+        binance.join()
+        bitstamp.join()
 
 
 if __name__ == '__main__':

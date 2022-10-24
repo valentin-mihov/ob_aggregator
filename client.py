@@ -3,7 +3,6 @@ import click
 import keyrock_ob_aggregator_pb2
 import keyrock_ob_aggregator_pb2_grpc
 from google.protobuf.json_format import MessageToDict
-from rich.console import Console
 from rich.table import Table
 from rich.live import Live
 
@@ -20,7 +19,8 @@ def generate_table(data):
             table.add_row("ASK", str(ask['price']), str(ask['amount']), ask['exchange'], style='red')
         table.add_row()
 
-        table.add_row("SPREAD", str(round(data['spread'], 5)), style='blue')
+        if 'spread' in data.keys():
+            table.add_row("SPREAD", str(round(data['spread'], 5)), style='blue')
 
         table.add_row()
         for bid in data['bids']:  # green
