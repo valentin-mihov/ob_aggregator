@@ -9,9 +9,6 @@ class WSClient(threading.Thread):
         self._ws = None
         self._endpoint = endpoint
         self._exchange_name = exchange_name
-        self._logger = logger
-
-    def run(self):
         self._ws = websocket.WebSocketApp(
             url=self._endpoint,
             on_message=self._on_message,
@@ -19,6 +16,9 @@ class WSClient(threading.Thread):
             on_close=self._on_close,
             on_open=self.__on_open
         )
+        self._logger = logger
+
+    def run(self):
         while True:
             self._ws.run_forever()
 

@@ -1,6 +1,10 @@
 from concurrent import futures
+from binance import BinanceWS
+from const import BINANCE, BITSTAMP, LAST_UPDATED_TS
+from datetime import datetime
+from threading import Lock
+from decimal import Decimal
 import logging
-import time
 import click
 
 import grpc
@@ -9,33 +13,52 @@ import keyrock_ob_aggregator_pb2 as orderbook__aggregator__pb2
 
 
 class OrderbookAggregatorServicer(keyrock_ob_aggregator_pb2_grpc.OrderbookAggregatorServicer):
-    def __init__(self, pair: str, ignore_dust: float, logger: logging.Logger):
-        self._pair = pair
-        self._ignore_dust = ignore_dust
+    def __init__(self, logger: logging.Logger, orderbook):
+        # Store parameter variables
         self._logger = logger
+        self._last_transmission = datetime.now()
+
+        # Initialize orderbook and lock
+        self.orderbook = orderbook
 
     def get_agg_ob(self):
-        level1 = orderbook__aggregator__pb2.Level(exchange="Binance", price=1002, amount=1)
-        level2 = orderbook__aggregator__pb2.Level(exchange="Bitstamp", price=1000, amount=1)
-        return orderbook__aggregator__pb2.Summary(spread=0.1, bids=[level1], asks=[level2])
+        bids = [orderbook__aggregator__pb2.Level(exchange="Binance", price=Decimal(x[0]), amount=Decimal(x[1])) for x in
+                self.orderbook[BINANCE]['bids']][:10]
+        asks = [orderbook__aggregator__pb2.Level(exchange="Binance", price=Decimal(x[0]), amount=Decimal(x[1])) for x in
+                self.orderbook[BINANCE]['asks']][:10]
+        spread = bids[-1].price - asks[0].price
+        return orderbook__aggregator__pb2.Summary(spread=spread, bids=bids, asks=asks)
 
     def BookSummary(self, request, context):
         while True:
-            time.sleep(1)
-            yield self.get_agg_ob()
+            if self.orderbook[LAST_UPDATED_TS] > self._last_transmission:
+                self._last_transmission = datetime.now()
+                yield self.get_agg_ob()
 
 
 @click.command()
-@click.option('--pair', type=str, default="BTCUSDT")
-@click.option('--ignore_dust', default=None)
+@click.option("--base_asset", type=str, default="BTC")
+@click.option('--quote_asset', type=str, default="USDT")
 @click.option('--port', type=int, default=50051)
-def main(pair, ignore_dust, port):
+def main(base_asset, quote_asset, port):
     # Initialize logging
     logger = logging.getLogger("Order book Aggregator")
 
     logger.info(f"Initializing service...")
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    servicer = OrderbookAggregatorServicer(pair=pair, ignore_dust=ignore_dust, logger=logger)
+
+    # Initialize order book and lock
+    orderbook = {BINANCE: {}, BITSTAMP: {}, LAST_UPDATED_TS: datetime.now()}
+    lock = Lock()
+
+    # Initialize Binance Exchange
+    binance = BinanceWS(base_asset=base_asset, quote_asset=quote_asset, orderbook=orderbook,
+                        lock=lock, logger=logger)
+    binance.start()
+
+    # Initialize Bitstamp Exchange
+
+    servicer = OrderbookAggregatorServicer( logger=logger, orderbook=orderbook)
     keyrock_ob_aggregator_pb2_grpc.add_OrderbookAggregatorServicer_to_server(servicer, server)
     server.add_insecure_port(f'[::]:{port}')
     server.start()

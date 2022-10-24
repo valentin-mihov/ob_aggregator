@@ -8,12 +8,15 @@ import backoff
 from typing import Dict, Any, Tuple
 from datetime import datetime
 from config import BINANCE_WS_ENDPOINT, BINANCE_SNAPSHOT_ENDPOINT
+from const import LAST_UPDATED_TS, BINANCE
 from ws_client import WSClient
 
 
 class BinanceWS(WSClient):
     def __init__(self, base_asset: str, quote_asset: str, orderbook: Dict[Any, Any], lock: threading.Lock
                  , logger: logging.Logger):
+
+        logger.info(f"Initializing Binance Feed...")
 
         # Initialize parent class for Websocket Management
         super().__init__(
@@ -26,7 +29,6 @@ class BinanceWS(WSClient):
         self.orderbook = orderbook
         self._lock = lock
         self._initial_update = True
-        self.updated_ts = None
 
     @staticmethod
     def _generate_ws_endpoint(base_asset: str, quote_asset: str) -> str:
@@ -35,7 +37,7 @@ class BinanceWS(WSClient):
         """
         return f"{BINANCE_WS_ENDPOINT}/ws/{base_asset.lower()}{quote_asset.lower()}@depth"
 
-    def _on_message(self, wsapi, message):
+    def _on_message(self, wsapi, message) -> None:
         """
         How to manage a local order book correctly
         Open a stream to wss://stream.binance.com:9443/ws/bnbbtc@depth.
@@ -48,25 +50,23 @@ class BinanceWS(WSClient):
         6. The data in each event is the absolute quantity for a price level.
         7. If the quantity is 0, remove the price level.
         8. Receiving an event that removes a price level that is not in your local order book can happen and is normal.
-        :param message:
-        :return:
         """
         ob_payload = json.loads(message)
 
         # Depth snapshot if OB is empty
-        if not self.orderbook:
+        if not self.orderbook[BINANCE]:
             for key, value in self._fetch_ob_snapshot().items():
-                self.orderbook[key] = value
+                self.orderbook[BINANCE][key] = value
 
-        lastUpdateId = self.orderbook['lastUpdateId']
+        lastUpdateId = self.orderbook[BINANCE]['lastUpdateId']
 
         self._logger.debug(f"Last update ID: {lastUpdateId} || U: {ob_payload['U']} || u: {ob_payload['u']}")
 
         if ob_payload['U'] <= lastUpdateId+1 <= ob_payload['u']:
-            self.orderbook['lastUpdateId'] = ob_payload['u']
+            self.orderbook[BINANCE]['lastUpdateId'] = ob_payload['u']
             self.process_updates(ob_payload)
         elif ob_payload['U'] == lastUpdateId+1:
-            self.orderbook['lastUpdateId'] = ob_payload['u']
+            self.orderbook[BINANCE]['lastUpdateId'] = ob_payload['u']
             self.process_updates(ob_payload)
         else:
             if self._initial_update:
@@ -76,6 +76,9 @@ class BinanceWS(WSClient):
                 self._logger.error(f"Binance Order Book out of sync...")
 
     def process_updates(self, data: Dict[Any, Any]) -> None:
+        """
+        Apply bids and asks updates. Update last updated timestamp
+        """
         with self._lock:
             # Process bid updates
             for update in data['b']:
@@ -86,23 +89,27 @@ class BinanceWS(WSClient):
                 self.update_orderbook('asks', update)
 
             # Set the last update time
-            self.updated_ts = datetime.now()
+            self.orderbook[LAST_UPDATED_TS] = datetime.now()
 
     def update_orderbook(self, side: str, update: Tuple[Any, Any]) -> None:
+        """
+        If size == 0 -> Remove level
+        If size > 0 -> Insert/Overwrite Level
+        """
         price, size = update
 
-        for x in range(0, len(self.orderbook[side])):
-            if price == self.orderbook[side][x][0]:
+        for x in range(0, len(self.orderbook[BINANCE][side])):
+            if price == self.orderbook[BINANCE][side][x][0]:
                 if size == 0:
-                    del self.orderbook[side]
+                    del self.orderbook[BINANCE][side]
                     break
                 else:
-                    self.orderbook[side][x] = update
+                    self.orderbook[BINANCE][side][x] = update
                     break
-            elif ((price < self.orderbook[side][x][0] and side == 'asks') or
-                    (price > self.orderbook[side][x][0] and side == 'bids')):
+            elif ((price < self.orderbook[BINANCE][side][x][0] and side == 'asks') or
+                    (price > self.orderbook[BINANCE][side][x][0] and side == 'bids')):
                 if float(size) > 0:
-                    self.orderbook[side].insert(x, update)
+                    self.orderbook[BINANCE][side].insert(x, update)
                     break
                 else:
                     break
@@ -115,7 +122,7 @@ class BinanceWS(WSClient):
         """
         Fetch OB snapshot. Retry 3 times on error
         """
-        r = requests.get(f'{BINANCE_SNAPSHOT_ENDPOINT}?symbol={self._pair}&limit=1000')
+        r = requests.get(f'{BINANCE_SNAPSHOT_ENDPOINT}?symbol={self._pair}&limit=100')
         try:
             r.raise_for_status()
         except Exception as e:
@@ -125,11 +132,11 @@ class BinanceWS(WSClient):
 
 
 if __name__ == '__main__':
-    orderbook = {}
+    orderbook = {BINANCE: {}, LAST_UPDATED_TS: datetime.now()}
     lock = threading.Lock()
     binance = BinanceWS("BTC", "USDT", orderbook, lock, logging.getLogger('Binance'))
     binance.run()
     while True:
         with lock:
             print(binance.orderbook)
-        time.sleep(0.1)
+        time.sleep(1)
