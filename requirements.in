@@ -3,3 +3,5 @@ grpcio-tools
 websocket
 requests
 backoff
+order-book
+rich
