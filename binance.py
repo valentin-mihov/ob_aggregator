@@ -5,10 +5,12 @@ import threading
 import time
 import backoff
 
+from order_book import OrderBook
+from decimal import Decimal
 from typing import Dict, Any, Tuple
 from datetime import datetime
 from config import BINANCE_WS_ENDPOINT, BINANCE_SNAPSHOT_ENDPOINT
-from const import LAST_UPDATED_TS, BINANCE
+from const import LAST_UPDATED_TS, BINANCE, BIDS, ASKS
 from ws_client import WSClient
 
 
@@ -29,6 +31,7 @@ class BinanceWS(WSClient):
         self.orderbook = orderbook
         self._lock = lock
         self._initial_update = True
+        self._last_updated_id = 0
 
     @staticmethod
     def _generate_ws_endpoint(base_asset: str, quote_asset: str) -> str:
@@ -55,18 +58,16 @@ class BinanceWS(WSClient):
 
         # Depth snapshot if OB is empty
         if not self.orderbook[BINANCE]:
-            for key, value in self._fetch_ob_snapshot().items():
-                self.orderbook[BINANCE][key] = value
+            snapshot = self._fetch_ob_snapshot()
+            self._last_updated_id = snapshot['lastUpdateId']
+            self.orderbook[BINANCE][BIDS] = {Decimal(price): Decimal(size) for price, size in snapshot[BIDS]}
+            self.orderbook[BINANCE][ASKS] = {Decimal(price): Decimal(size) for price, size in snapshot[ASKS]}
 
-        lastUpdateId = self.orderbook[BINANCE]['lastUpdateId']
-
-        self._logger.debug(f"Last update ID: {lastUpdateId} || U: {ob_payload['U']} || u: {ob_payload['u']}")
-
-        if ob_payload['U'] <= lastUpdateId+1 <= ob_payload['u']:
-            self.orderbook[BINANCE]['lastUpdateId'] = ob_payload['u']
+        if ob_payload['U'] <= self._last_updated_id+1 <= ob_payload['u']:
+            self._last_updated_id = ob_payload['u']
             self.process_updates(ob_payload)
-        elif ob_payload['U'] == lastUpdateId+1:
-            self.orderbook[BINANCE]['lastUpdateId'] = ob_payload['u']
+        elif ob_payload['U'] == self._last_updated_id+1:
+            self._last_updated_id = ob_payload['u']
             self.process_updates(ob_payload)
         else:
             if self._initial_update:
@@ -82,11 +83,11 @@ class BinanceWS(WSClient):
         with self._lock:
             # Process bid updates
             for update in data['b']:
-                self.update_orderbook('bids', update)
+                self.update_orderbook(BIDS, update)
 
             # Process ask updates
             for update in data['a']:
-                self.update_orderbook('asks', update)
+                self.update_orderbook(ASKS, update)
 
             # Set the last update time
             self.orderbook[LAST_UPDATED_TS] = datetime.now()
@@ -96,23 +97,16 @@ class BinanceWS(WSClient):
         If size == 0 -> Remove level
         If size > 0 -> Insert/Overwrite Level
         """
-        price, size = update
+        price = Decimal(update[0])
+        size = Decimal(update[1])
 
-        for x in range(0, len(self.orderbook[BINANCE][side])):
-            if price == self.orderbook[BINANCE][side][x][0]:
-                if size == 0:
-                    del self.orderbook[BINANCE][side]
-                    break
-                else:
-                    self.orderbook[BINANCE][side][x] = update
-                    break
-            elif ((price < self.orderbook[BINANCE][side][x][0] and side == 'asks') or
-                    (price > self.orderbook[BINANCE][side][x][0] and side == 'bids')):
-                if float(size) > 0:
-                    self.orderbook[BINANCE][side].insert(x, update)
-                    break
-                else:
-                    break
+        if size == 0:
+            try:
+                del self.orderbook[BINANCE][side][price]
+            except KeyError:
+                pass
+        else:
+            self.orderbook[BINANCE][side][price] = size
 
     @backoff.on_exception(backoff.expo,
                           requests.exceptions.RequestException,
@@ -132,7 +126,7 @@ class BinanceWS(WSClient):
 
 
 if __name__ == '__main__':
-    orderbook = {BINANCE: {}, LAST_UPDATED_TS: datetime.now()}
+    orderbook = {BINANCE: OrderBook(), LAST_UPDATED_TS: datetime.now()}
     lock = threading.Lock()
     binance = BinanceWS("BTC", "USDT", orderbook, lock, logging.getLogger('Binance'))
     binance.run()

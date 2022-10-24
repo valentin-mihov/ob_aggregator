@@ -14,7 +14,7 @@ class WSClient(threading.Thread):
             on_message=self._on_message,
             on_error=self._on_error,
             on_close=self._on_close,
-            on_open=self.__on_open
+            on_open=self._on_open
         )
         self._logger = logger
 
@@ -31,6 +31,6 @@ class WSClient(threading.Thread):
     def _on_close(self, wsapi, close_status_code, close_msg):
         self._logger.info(f"Closed connection to {self._exchange_name}")
 
-    def __on_open(self, wsapi):
+    def _on_open(self, wsapi):
         self._logger.info(f"Connected to {self._exchange_name}")
 
