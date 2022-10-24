@@ -7,7 +7,6 @@ from datetime import datetime
 from threading import Lock
 from order_book import OrderBook
 
-import time
 import logging
 import click
 import grpc
