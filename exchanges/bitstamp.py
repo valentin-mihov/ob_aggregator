@@ -8,7 +8,7 @@ from typing import Dict, Any
 from datetime import datetime
 from config import BITSTAMP_ENDPOINT
 from const import LAST_UPDATED_TS, BITSTAMP, BIDS, ASKS
-from ws_client import WSClient
+from exchanges.ws_client import WSClient
 
 
 class BitstampWS(WSClient):
@@ -50,20 +50,8 @@ class BitstampWS(WSClient):
         the previous bids and asks in this case.
         """
         ob_payload = json.loads(message)
-        print(ob_payload)
         if ob_payload['event'] == "data":
             with self._lock:
                 for side in [BIDS, ASKS]:
                     self.orderbook[BITSTAMP][side] = {Decimal(price): Decimal(size) for price, size in ob_payload['data'][side]}
                 self.orderbook[LAST_UPDATED_TS] = datetime.now()
-
-
-if __name__ == '__main__':
-    orderbook = {BITSTAMP: OrderBook(), LAST_UPDATED_TS: datetime.now()}
-    lock = threading.Lock()
-    bitstamp = BitstampWS("BTC", "USDT", orderbook, lock, logging.getLogger('Bitstamp'))
-    bitstamp.start()
-    while True:
-        with lock:
-            print(dict(orderbook[BITSTAMP][BIDS]))
-            pass

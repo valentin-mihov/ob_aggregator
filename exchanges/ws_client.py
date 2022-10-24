@@ -1,9 +1,16 @@
 import threading
 import websocket
+import logging
 
 
 class WSClient(threading.Thread):
-    def __init__(self, endpoint, exchange_name, logger):
+    def __init__(self, endpoint: str, exchange_name: str, logger: logging.Logger):
+        """
+        Threaded WebSocket Client
+        :param endpoint: WS endpoint
+        :param exchange_name: exchange name
+        :param logger: logging object
+        """
         super().__init__()
 
         self._ws = None

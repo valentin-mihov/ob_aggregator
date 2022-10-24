@@ -11,7 +11,7 @@ from typing import Dict, Any, Tuple
 from datetime import datetime
 from config import BINANCE_WS_ENDPOINT, BINANCE_SNAPSHOT_ENDPOINT
 from const import LAST_UPDATED_TS, BINANCE, BIDS, ASKS
-from ws_client import WSClient
+from exchanges.ws_client import WSClient
 
 
 class BinanceWS(WSClient):
@@ -123,14 +123,3 @@ class BinanceWS(WSClient):
             self._logger.error(f"Error with Binance snapshot fetching: {e}")
             raise e
         return json.loads(r.content.decode())
-
-
-if __name__ == '__main__':
-    orderbook = {BINANCE: OrderBook(), LAST_UPDATED_TS: datetime.now()}
-    lock = threading.Lock()
-    binance = BinanceWS("BTC", "USDT", orderbook, lock, logging.getLogger('Binance'))
-    binance.run()
-    while True:
-        with lock:
-            print(binance.orderbook)
-        time.sleep(1)
