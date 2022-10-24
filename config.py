@@ -1,3 +1,5 @@
 # Define endpoints
-BINANCE_ENDPOINT = "wss://stream.binance.com:9443"
+BINANCE_WS_ENDPOINT = "wss://stream.binance.com:9443"
+BINANCE_SNAPSHOT_ENDPOINT = "https://www.binance.com/api/v1/depth"
 BITSTAMP_ENDPOINT = ""
+
