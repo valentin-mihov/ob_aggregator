@@ -114,7 +114,7 @@ class BinanceWS(WSClient):
         """
         Fetch OB snapshot. Retry 3 times on error
         """
-        r = requests.get(f'{BINANCE_SNAPSHOT_ENDPOINT}?symbol={self._pair}&limit=100')
+        r = requests.get(f'{BINANCE_SNAPSHOT_ENDPOINT}?symbol={self._pair}&limit=1000')
         try:
             r.raise_for_status()
         except Exception as e:
