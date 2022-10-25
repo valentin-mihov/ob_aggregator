@@ -73,8 +73,8 @@ class OrderbookAggregatorServicer(keyrock_ob_aggregator_pb2_grpc.OrderbookAggreg
 
 
 @click.command()
-@click.option("--base_asset", type=str, default="BTC")
-@click.option('--quote_asset', type=str, default="USDT")
+@click.option("--base_asset", type=str)
+@click.option('--quote_asset', type=str)
 @click.option('--levels', type=int, default=10)
 @click.option('--dust_amount', type=float, default=0)
 @click.option('--port', type=int, default=50052)
@@ -98,7 +98,6 @@ def main(base_asset, quote_asset, levels, dust_amount, port):
     bitstamp = BitstampWS(base_asset=base_asset, quote_asset=quote_asset, orderbook=orderbook,
                           lock=lock, logger=logger)
     bitstamp.daemon = True
-
 
     # Initialize the gRPC Servicer
     servicer = OrderbookAggregatorServicer(logger=logger, orderbook=orderbook, levels=levels, dust_amount=dust_amount)
