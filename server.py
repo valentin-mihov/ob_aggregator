@@ -76,13 +76,13 @@ def main(base_asset, quote_asset, port):
     binance = BinanceWS(base_asset=base_asset, quote_asset=quote_asset, orderbook=orderbook,
                         lock=lock, logger=logger)
     binance.daemon = True
-    binance.start()
+
 
     # Initialize Bitstamp Exchange
     bitstamp = BitstampWS(base_asset=base_asset, quote_asset=quote_asset, orderbook=orderbook,
                           lock=lock, logger=logger)
     bitstamp.daemon = True
-    bitstamp.start()
+
 
     # Initialize the gRPC Servicer
     servicer = OrderbookAggregatorServicer(logger=logger, orderbook=orderbook)
@@ -91,13 +91,14 @@ def main(base_asset, quote_asset, port):
 
     # Start the server
     try:
+        binance.start()
         server.start()
+        bitstamp.start()
         server.wait_for_termination()
     except KeyboardInterrupt:
         logger.info(f"Stopping service...")
         server.stop(grace=False)
-        binance.join()
-        bitstamp.join()
+        exit()
 
 
 if __name__ == '__main__':
