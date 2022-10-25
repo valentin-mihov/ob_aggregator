@@ -38,6 +38,10 @@ class BitstampWS(WSClient):
         }
         return json.dumps(p)
 
+    @staticmethod
+    def _parse_ob_payload(payload: str, side: str) -> Dict[Decimal, Decimal]:
+        return {Decimal(price): Decimal(size) for price, size in payload['data'][side]}
+
     def _on_open(self, wsapi):
         self._logger.info(f"Connected to {self._exchange_name}")
 
@@ -53,5 +57,5 @@ class BitstampWS(WSClient):
         if ob_payload['event'] == "data":
             with self._lock:
                 for side in [BIDS, ASKS]:
-                    self.orderbook[BITSTAMP][side] = {Decimal(price): Decimal(size) for price, size in ob_payload['data'][side]}
+                    self.orderbook[BITSTAMP][side] = self._parse_ob_payload(ob_payload, side)
                 self.orderbook[LAST_UPDATED_TS] = datetime.now()
