@@ -1,14 +1,28 @@
 import grpc
 import click
+import json
 import keyrock_ob_aggregator_pb2
 import keyrock_ob_aggregator_pb2_grpc
 from google.protobuf.json_format import MessageToDict
 from rich.table import Table
 from rich.live import Live
+from rich.layout import Layout
+from rich.pretty import Pretty
+from rich.panel import Panel
 
+layout = Layout()
 
 def generate_table(data):
-    table = Table(title="\nAggregated Orderbook")
+    if data and 'spread' in data.keys():
+        spread = str(round(data['spread'], 5))
+        data['spread'] = float(spread)
+    else:
+        spread = ""
+    layout.split_row(
+        Layout(name="left"),
+        Layout(name="right")
+    )
+    table = Table(title="\nAggregated Orderbook", expand=True)
     table.add_column("SIDE")
     table.add_column("PRICE")
     table.add_column("SIZE")
@@ -20,13 +34,19 @@ def generate_table(data):
         table.add_row()
 
         if 'spread' in data.keys():
-            table.add_row("SPREAD", str(round(data['spread'], 5)), style='blue')
+            table.add_row("SPREAD", spread, style='blue')
 
         table.add_row()
         for bid in data['bids']:  # green
             table.add_row("BID", str(bid['price']), str(bid['amount']), bid['exchange'], style='green')
 
-    return table
+    layout["left"].update(
+        Panel(table, title="Aggregated Orderbook")
+    )
+    layout["right"].update(
+        Panel(Pretty(data), title="Raw Data")
+    )
+    return layout
 
 
 @click.command()
@@ -41,7 +61,7 @@ def run_client(port):
     empty = keyrock_ob_aggregator_pb2.Empty()
 
     try:
-        with Live(generate_table([]), refresh_per_second=20) as live:
+        with Live(generate_table([]), refresh_per_second=5) as live:
             for data in stub.BookSummary(empty):
                 live.update(generate_table(MessageToDict(data)))
     except KeyboardInterrupt:
