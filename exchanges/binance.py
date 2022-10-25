@@ -2,10 +2,8 @@ import requests
 import json
 import logging
 import threading
-import time
 import backoff
 
-from order_book import OrderBook
 from decimal import Decimal
 from typing import Dict, Any, Tuple
 from datetime import datetime
