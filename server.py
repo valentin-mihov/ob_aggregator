@@ -2,7 +2,6 @@ from concurrent import futures
 from exchanges.binance import BinanceWS
 from exchanges.bitstamp import BitstampWS
 from const import BINANCE, BITSTAMP, LAST_UPDATED_TS, BIDS, ASKS
-from config import ORDERS_PER_SIDE
 from datetime import datetime
 from threading import Lock
 from order_book import OrderBook
@@ -17,8 +16,9 @@ logging.basicConfig(format='%(asctime)s %(message)s')
 
 
 class OrderbookAggregatorServicer(keyrock_ob_aggregator_pb2_grpc.OrderbookAggregatorServicer):
-    def __init__(self, logger: logging.Logger, orderbook):
+    def __init__(self, logger: logging.Logger, orderbook, levels):
         # Store parameter variables
+        self._levels = levels
         self._logger = logger
         self._last_transmission = datetime.now()
 
@@ -28,9 +28,9 @@ class OrderbookAggregatorServicer(keyrock_ob_aggregator_pb2_grpc.OrderbookAggreg
     def parse_ob(self, exchange: str, side: str):
         """
         Convert the order book side into a list of gRPC objects.
-        Limit the number to 10.
+        Limit the number to the defined number of levels.
         """
-        return [keyrock_ob_aggregator_pb2.Level(exchange=exchange, price=p, amount=a) for p, a in self.orderbook[exchange][side].to_list()[:ORDERS_PER_SIDE]]
+        return [keyrock_ob_aggregator_pb2.Level(exchange=exchange, price=p, amount=a) for p, a in self.orderbook[exchange][side].to_list()[:self._levels*10]]
 
     def get_agg_ob(self):
         # Combine top 10 bids and asks from each exchange
@@ -45,7 +45,7 @@ class OrderbookAggregatorServicer(keyrock_ob_aggregator_pb2_grpc.OrderbookAggreg
         spread = sorted_asks[0].price - sorted_bids[0].price
 
         # Return the summary object
-        return keyrock_ob_aggregator_pb2.Summary(spread=spread, bids=sorted_bids[:10], asks=sorted_asks[:10])
+        return keyrock_ob_aggregator_pb2.Summary(spread=spread, bids=sorted_bids[:self._levels], asks=sorted_asks[:self._levels])
 
     def BookSummary(self, request, context):
         """
@@ -60,8 +60,9 @@ class OrderbookAggregatorServicer(keyrock_ob_aggregator_pb2_grpc.OrderbookAggreg
 @click.command()
 @click.option("--base_asset", type=str, default="BTC")
 @click.option('--quote_asset', type=str, default="USDT")
+@click.option('--levels', type=int, default=10)
 @click.option('--port', type=int, default=50052)
-def main(base_asset, quote_asset, port):
+def main(base_asset, quote_asset, levels, port):
     # Initialize logging
     logger = logging.getLogger("Order book Aggregator")
 
@@ -77,7 +78,6 @@ def main(base_asset, quote_asset, port):
                         lock=lock, logger=logger)
     binance.daemon = True
 
-
     # Initialize Bitstamp Exchange
     bitstamp = BitstampWS(base_asset=base_asset, quote_asset=quote_asset, orderbook=orderbook,
                           lock=lock, logger=logger)
@@ -85,7 +85,7 @@ def main(base_asset, quote_asset, port):
 
 
     # Initialize the gRPC Servicer
-    servicer = OrderbookAggregatorServicer(logger=logger, orderbook=orderbook)
+    servicer = OrderbookAggregatorServicer(logger=logger, orderbook=orderbook, levels=levels)
     keyrock_ob_aggregator_pb2_grpc.add_OrderbookAggregatorServicer_to_server(servicer, server)
     server.add_insecure_port(f'[::]:{port}')
 
