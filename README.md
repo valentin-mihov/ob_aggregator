@@ -11,7 +11,7 @@ pip3 install -r requirements.txt
 ### Start Server
 We can start the server instance by passing the base and quote asset of the pair we would like to stream data for:
 ```bash
-python3 server.py --base_asset {base_asset} --quote_asset {quote_asset} --levels {levels} --port {port}
+python3 server.py --base_asset {base_asset} --quote_asset {quote_asset} --levels {levels} --dust_amount {dust_amount} --port {port}
 ```
 
 Where the parameters are as follows:
