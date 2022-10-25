@@ -5,7 +5,7 @@ The project supports Python version >=3.6
 
 ### Install requirements
 ```bash
-pip3 install requirements.txt
+pip3 install -r requirements.txt
 ```
 
 ### Start Server
