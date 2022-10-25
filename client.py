@@ -22,7 +22,7 @@ def generate_table(data):
         Layout(name="left"),
         Layout(name="right")
     )
-    table = Table(title="\nAggregated Orderbook", expand=True)
+    table = Table(expand=True)
     table.add_column("SIDE")
     table.add_column("PRICE")
     table.add_column("SIZE")
