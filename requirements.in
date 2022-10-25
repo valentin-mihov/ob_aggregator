@@ -5,3 +5,4 @@ requests
 backoff
 order-book
 rich
+pytest
