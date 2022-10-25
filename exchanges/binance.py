@@ -36,7 +36,7 @@ class BinanceWS(WSClient):
         """
         Retrieve the Binance Endpoint
         """
-        return f"{BINANCE_WS_ENDPOINT}/ws/{base_asset.lower()}{quote_asset.lower()}@depth"
+        return f"{BINANCE_WS_ENDPOINT}/ws/{base_asset.lower()}{quote_asset.lower()}@depth@100ms"
 
     def _on_message(self, wsapi, message) -> None:
         """

@@ -25,7 +25,7 @@ def test_ws_endpoint_formation(binance_client):
     """
     # Test WS endpoint formation
     """
-    assert binance_client._generate_ws_endpoint("BTC", "USDT") == 'wss://stream.binance.com:9443/ws/btcusdt@depth'
+    assert binance_client._generate_ws_endpoint("BTC", "USDT") == 'wss://stream.binance.com:9443/ws/btcusdt@depth@100ms'
 
 
 def test_ob_update(binance_client):
