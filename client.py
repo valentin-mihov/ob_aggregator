@@ -1,6 +1,5 @@
 import grpc
 import click
-import json
 import keyrock_ob_aggregator_pb2
 import keyrock_ob_aggregator_pb2_grpc
 from google.protobuf.json_format import MessageToDict
@@ -11,6 +10,7 @@ from rich.pretty import Pretty
 from rich.panel import Panel
 
 layout = Layout()
+
 
 def generate_table(data):
     if data and 'spread' in data.keys():
@@ -56,16 +56,18 @@ def run_client(port):
     Simple client that listens to messages from the server
     and updates a TUI table in live mode.
     """
-    channel = grpc.insecure_channel(f'localhost:{port}')
-    stub = keyrock_ob_aggregator_pb2_grpc.OrderbookAggregatorStub(channel)
-    empty = keyrock_ob_aggregator_pb2.Empty()
-
     try:
+        channel = grpc.insecure_channel(f'localhost:{port}')
+        stub = keyrock_ob_aggregator_pb2_grpc.OrderbookAggregatorStub(channel)
+        empty = keyrock_ob_aggregator_pb2.Empty()
+
         with Live(generate_table([]), refresh_per_second=5) as live:
             for data in stub.BookSummary(empty):
                 live.update(generate_table(MessageToDict(data)))
     except KeyboardInterrupt:
         pass
+    except grpc._channel._MultiThreadedRendezvous as e:
+        print(f"RPC Server Error: \n{e}")
 
 
 if __name__ == "__main__":
